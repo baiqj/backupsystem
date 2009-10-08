@@ -1,0 +1,43 @@
+#!/usr/bin/python
+
+from ConfigParser import RawConfigParser
+import os.path, os, subprocess, sys
+
+conf = os.path.expanduser ('~/.gitosis.conf')
+repos = os.path.dirname (os.getcwd ())
+my_post_update = os.path.join (os.path.dirname (__file__), 'post-update.template')
+TODOdir = "/data/backup/TODO"
+
+r = RawConfigParser ()
+r.read (conf)
+
+for section in r.sections ():
+		if section.startswith ('repo '):
+			repo = section[len ('repo '):]
+
+			repo_path = os.path.join (repos, repo + '.git')
+			if not os.path.exists (repo_path):
+				os.mkdir (repo_path, 0755)
+				ret = subprocess.call (
+					args = [
+						'git',
+						'--git-dir=%s' % repo_path,
+						'init',
+						'--bare'
+					],
+					close_fds = True
+				)
+				
+				if ret == 0:
+					post_update_path = os.path.join (repo_path, 'hooks', 'post-update')
+					post_update = open (post_update_path, 'w')
+					post_update.write ("""#!/bin/bash
+TODOdir="$TODOdir"
+test ! -z "$TODOdir" || TODOdir="%s"
+N="${TODOdir}/%s"
+
+""" % (TODOdir, repo))
+					post_update.write (open (my_post_update, 'r').read ())
+					post_update.close ()
+					os.chmod (post_update_path, 0744)
+

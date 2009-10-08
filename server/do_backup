@@ -1,0 +1,107 @@
+#!/bin/bash
+source "$(dirname $0)/backupconfig.sh"
+source "${UtilsDir}/utils.sh"
+
+Logfile="${LogfileDir}/$(date +%y-%m)"
+
+Launch_time=$(date)
+
+function ProcessRquest {
+	local P="$1"
+	local node="$2"
+	local totalog="$3"
+	local failog="$4"
+
+	local t1=$(mktemp)
+	local module=$(cut -d " " -f 1 "$P")
+	local cmd=""
+	local args=""
+
+	echo "$(date) ${P} =======>" >> "$t1"
+	cat "$P" >> "$t1"
+	echo "End of ${P} <=======" >> "$t1"
+
+	case "$module" in
+		'git')
+			url=$(cut -d " " -f 2- "$P")	
+			store_dir="${Datadir}/$(basename ${node})/git"
+			store_to="${store_dir}/$(basename ${url})"
+			
+			test -e "$store_dir" || mkdir -p "$store_dir"
+			cmd="${Cmdir}/git.sh"
+			args=("$url" "$store_to")
+			;;
+		'sftp')
+			timestamp=$(cut -d " " -f 2 "$P")
+			url=$(cut -d " " -f 3- "$P")
+			store_dir="${Datadir}/$(basename ${node})/sftp"
+			store_to="${store_dir}/${P:1} $(date +%y-%m-%d_%H_%M_%S) $(basename ${url})"
+			test -e "$store_dir" || mkdir -p "$store_dir"
+
+			cmd="${Cmdir}/sftp.sh"
+			args=("$url" "$store_to")
+			;;
+		*)
+			echo "unknown module: \"${module}\""
+			return -1
+			;;
+	esac
+	
+	if test -z "$failog"; then
+		(. "$cmd" "${args[@]}") 1>>"$t1" 2>&1
+	else	
+		(. "$cmd" "${args[@]}") 1>>"$t1" 2>&1 || (cat "$t1" >> "$failog"; echo >> "$failog")
+	fi
+
+	cat "$t1" >> "$totalog"; echo >> "$totalog"
+	rm -f "$t1"
+}
+
+(
+flock -xn 300
+
+for N in ${TODOdir}/*
+do
+	if test -d "$N"; then
+		pushd "$N" || continue
+
+		resumelog=$(mktemp)
+		for P in P*
+		do
+			test -e "$P" || break
+			ProcessRequest "$P" "$N" "$resumelog" ""
+			mv -f "$P" "F${P:1}"
+		done
+		if test -s "$resumelog"; then
+			python "${UtilsDir}/sendmail.py" "[${Host}][${Launch_time}]resume backup:" "$resumelog" "${Administrator[@]}"
+		fi
+		rm -f "$resumelog"
+
+		failog=$(mktemp)	
+		for C in C*
+		do
+			test -e "$C" || break
+			P="P${C:1}"
+			mv -f "$C" "$P"
+			ProcessRquest "$P" "$N" "$Logfile" "$failog"
+			mv -f "$P" "F${P:1}"
+		done
+		
+		if test -s "$failog"; then
+			echo "Some error happens in backup ${Host} => ${N}, notifies ${Administrator[@]}..."
+			python "${UtilsDir}/sendmail.py" "[${Host}][${Launch_time}]errors in backup:" "$failog" "${Administrator[@]}"
+		fi
+		rm -f "$failog"
+
+		for F in F*
+		do
+			test -e "$F" || break
+			rm -f "$F"
+		done
+
+		popd
+	fi
+done
+
+)300>"${TODOdir}/.lock"
+

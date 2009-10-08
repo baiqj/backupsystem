@@ -1,0 +1,26 @@
+set -e
+
+export GIT_DIR="$PWD"
+rev=$(git rev-parse master)
+
+test -e "$N" || (mkdir -p "$N" && chmod g+w "$N") || exit -1
+pushd "$N"
+
+(
+	flock -x 200
+	
+	rm -rf .incomplete
+	mkdir .incomplete && (git archive --format=tar "$rev" | tar xf - -C .incomplete)
+	
+	for rq in .incomplete/RQ*
+	do
+		test -e "$rq" || break
+		_rq=$(basename "$rq")
+		mv -f "$rq" "C${_rq:2}"
+	done
+	
+	rm -rf .incomplete
+) 200>.lock
+
+popd
+

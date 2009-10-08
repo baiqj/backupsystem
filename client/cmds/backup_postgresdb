@@ -1,0 +1,33 @@
+#!/bin/bash
+set -eu
+
+db="$1"
+if test -z $db; then
+    db="postgres"
+fi
+
+name=$(base64 <<EOF
+$db
+EOF)
+timestamp=$(date +%y-%m-%d_%H_%M_%S)
+target="${tmpDir}/${name} $timestamp.tar.lzma"
+
+targetfail=0
+if test $db = "postgres"; then
+    (sudo -u postgres pg_dumpall | lzma -zfc > "$target") || targetfail=1
+else
+    (sudo -u postgres pg_dump -o "$db" | lzma -zfc > "$target") || targetfail=1
+fi
+
+if test $targetfail -eq 1; then
+	rm -f "$target"
+	exit -1
+fi
+
+fingerprint=$(checksum "$target")
+pub="${tmpDir}/${fingerprint}"
+mv -f "$target" "$pub"
+echo "backup_postgresdb: $db => \"$pub\" successfully"
+
+add_queue "$name" "sftp ${timestamp} ${Export_sftp}:${pub}"
+

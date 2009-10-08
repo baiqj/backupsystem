@@ -1,0 +1,67 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+import os, sys, fcntl, os.path, logging
+from base64 import urlsafe_b64encode
+from backupconfig import RequestDir, Cmds, DefaultBackupNode
+	
+def create_request (module, path):
+	_r = Cmds[module] % path
+	return '. %s\n' % _r
+
+if __name__ == '__main__':
+	Usage="commitBackupRequest module path [backup]"
+	
+	if len (sys.argv) < 3:
+		sys.exit (Usage)
+	
+	try:
+		backup = os.path.basename (sys.argv[3])
+	except IndexError:
+		backup = DefaultBackupNode
+	else:
+		if not backup.strip ():
+			backup = DefaultBackupNode
+	
+	module = sys.argv[1]
+	path = sys.argv[2]
+	
+	logging.basicConfig (level = logging.DEBUG, format = "%(asctime)s[%(levelname)s]: %(message)s")
+	
+	old_path = os.getcwd ()
+	try:
+		dir = os.path.join (RequestDir, backup)
+		if not os.path.exists (dir):
+			os.mkdir (dir, 0755)
+		os.chdir (dir)
+		
+		name = module + ':' + urlsafe_b64encode (path)
+		
+		if not os.path.exists ('C' + name):
+			f = open ('i' + name, 'w')
+			lock = open ('.lock.' + name, 'w')
+
+			try:
+				fcntl.flock (lock.fileno (), fcntl.LOCK_EX | fcntl.LOCK_NB)
+			except IOError:
+				logging.debug ("Detect another in-process request of \"%s:%s\", quit...", module, path)
+			else:
+				logging.debug ("commit request of \"%s:%s\"", module, path)
+				request = create_request (module, path)
+				f.write (request)
+				f.flush ()
+				os.fdatasync (f.fileno ())
+				# f.close ()
+
+				os.rename ('i' + name, 'C' + name)
+				# fcntl.flock (lock.fileno (), fcntl.LOCK_UN)
+				# lock.close ()
+		else:
+			logging.debug ("Merge with previous commit request of \"%s:%s\"", module, path)
+	except KeyboardInterrupt:
+		logging.info ("Interrupt!")
+	except:
+		raise
+	finally:
+		os.chdir (old_path)
+

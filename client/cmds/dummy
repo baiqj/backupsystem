@@ -1,0 +1,19 @@
+#!/bin/bash
+set -eu
+echo "Host=\"$Host\""
+echo "Export_sftp=\"$Export_sftp\""
+echo "Export_git=\"$Export_git\""
+echo "DefaultBackupNode=\"$DefaultBackupNode\""
+echo "UtilsDir=\"$UtilsDir\""
+echo "RequestDir=\"$RequestDir\""
+echo "LogfileDir=\"$LogfileDir\""
+echo "SendQueue=\"$SendQueue\""
+echo "tmpDir=\"$tmpDir\""
+echo "git_base=\"$git_base\""
+echo "postgres_db=\"$postgres_db\""
+echo "trac=\"$trac\""
+echo "app=\"$app\""
+echo "drupal=\"$drupal\""
+
+echo "Administrator=\"${Administrator[@]}\""
+

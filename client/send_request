@@ -1,0 +1,114 @@
+#!/bin/bash
+source "$(dirname $0)/backupconfig.sh"
+source "${UtilsDir}/utils.sh"
+
+Launch_time=$(date)
+
+Logfile="${LogfileDir}/$(date +%y-%m)"
+
+function ProcessRequest {
+	local P="$1"
+	local totalog="$2"
+	local failog="$3"
+
+	local t1=$(mktemp)
+	echo "$(date) ${P} =======>" >> "$t1"
+	cat "$P" >> "$t1"
+	echo "End of ${P} <=======" >> "$t1"
+
+	if test -z "$failog"; then
+		(. "${P}") 1>>"$t1" 2>&1
+	else
+		(. "${PWD}/${P}") 1>>"$t1" 2>&1 || (cat "$t1" >> "$failog"; echo >> "$failog")
+	fi
+	
+	cat "$t1" >> "$totalog"; echo >> "$totalog"
+    rm -f "$t1"
+}
+
+(
+flock -xn 300
+
+for N in ${RequestDir}/*
+do
+	if test -d "$N"; then
+		pushd "$N" || continue
+		
+		TODOdir=$(mktemp -d)
+		
+		resumelog=$(mktemp)
+		for P in P*
+		do
+			test -e "$P" || break
+			ProcessRequest "$P" "$resumelog" ""
+			mv -f "$P" "F${P:1}"
+		done
+		
+		if test -s "$resumelog"; then	
+			python "${UtilsDir}/sendmail.py" "[${Host}][${Launch_time}]resume backup:" "$resumelog" "${Administrator[@]}"
+		fi
+		rm -f "$resumelog"
+		
+		failog=$(mktemp)
+		for C in C*
+		do
+			test -e "$C" || break
+    		P="P${C:1}"
+			mv -f "$C" "$P"
+	
+			ProcessRequest "$P" "$Logfile" "$failog"
+	
+			mv -f "$P" "F${P:1}"
+		done
+
+		rmdir "$TODOdir" 2>/dev/null || (
+			t2=$(mktemp)
+			echo "$(date) ======= git commit =======" >> "$t2"
+
+			(	
+				set -e	
+				export GIT_DIR="${SendQueue}/$(basename ${N}).git"
+				test -d "$GIT_DIR"
+				pushd "$TODOdir"
+		
+				git rm -rf --cached . 1>/dev/null 2>&1
+				git add RQ*
+				
+				# Make sure, we have changes.
+				date > timestamp
+				git add timestamp
+				
+				git commit -m "${Launch_time}: see log '${Host}':'${Logfile}'"
+				git push origin +master:master
+				popd
+			) 1>>"$t2" 2>&1 || (cat "$t2" >> "$failog"; echo >> "$failog")
+	
+			cat "$t2" >> "$Logfile"; echo >> "$Logfile"
+			rm -f "$t2"
+			rm -rf "$TODOdir"
+		)
+
+		if test -s "$failog"; then
+			echo "Some error happens in backup ${Host} => ${N}, notifies ${Administrator[@]}..."
+			python "${UtilsDir}/sendmail.py" "[${Host}][${Launch_time}]errors in backup:" "$failog" "${Administrator[@]}"
+		fi
+		rm -f "$failog"
+
+		for i in i*
+		do
+			test -e "$i" || break
+			flock -xn "$i" -c "rm -f \"$i\""
+		done
+
+		for F in F*
+		do
+			test -e "$F" || break
+			rm -f "$F"
+		done
+
+		popd
+	fi
+done
+
+)300>"${RequestDir}/.lock"
+

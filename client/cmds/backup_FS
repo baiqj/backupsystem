@@ -1,0 +1,45 @@
+#!/bin/bash
+set -eu
+
+module="$1"
+source_dir="$2"
+
+name=$(base64<<EOF
+$source_dir
+EOF)
+timestamp=$(date +%y-%m-%d_%H_%M_%S)
+
+target="${tmpDir}/${name} ${timestamp}.tar.lzma"
+
+tarfail=0
+case "$module" in
+    'trac')
+        (sudo tar cpf "$target" --exclude="${source_dir}/files/*" --exclude="${source_dir}/git/*" --exclude="${source_dir}/gitosis_u/linux/*" --exclude="${source_dir}/svn/*" --lzma "$source_dir") || tarfail=1
+		if test $tarfail -eq 1; then
+			rm -f "$target"
+			exit -1
+		fi
+
+		sudo chown adminbackup:adminbackup "$target"
+        ;;
+    'app'|'drupal')
+		tar cpf "$target" --lzma "$source_dir" || tarfail=1
+		if test $tarfail -eq 1; then
+			rm -f "$target"
+			exit -1
+		fi
+        ;;
+	*)
+        echo "backup FS: Not support module: \"$module\"" >&2
+        exit -1
+        ;;
+esac
+
+fingerprint=$(checksum "$target")
+pub="${tmpDir}/${fingerprint}"
+mv -f "$target" "${pub}"
+
+echo "backup_FS: \"$source_dir\" => \"${pub}\" successfully"
+
+add_queue "$name" "sftp ${timestamp} ${Export_sftp}:${pub}"
+
