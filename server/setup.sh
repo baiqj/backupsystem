@@ -85,8 +85,8 @@ mklayout ()
 
 install_scripts ()
 {
-	exec_sources=("do_backup")
-	normal_sources=("backupconfig.sh" "cmds/git.sh" "cmds/sftp.sh" "utils/gitosis-admin.post-update" "utils/post-update.template" "utils/sendmail.py" "utils/utils.sh")
+	exec_sources=("do_backup" "bkdb")
+	normal_sources=("backupconfig.sh" "cmds/git.sh" "cmds/sftp.sh" "utils/gitosis-admin.post-update" "utils/post-update.template" "utils/sendmail.py" "utils/utils.sh" "utils/colorful.py")
 	
 	for item in "${exec_sources[@]}"
 	do
