@@ -20,17 +20,17 @@ else
 	host_id="$2"
 fi
 # canonicalize -> absolute_path
-target=$(readlink -f "$target")
+target=$(readlink -m "$target")
 
 logdir="${target}/log"
 datadir="${target}/data"
 TODOdir="${target}/TODO"
 scriptsdir="${target}/scripts"
-cmdir="${scripts}/cmds"
-utilsdir="${scripts}/utils"
+cmdir="${scriptsdir}/cmds"
+utilsdir="${scriptsdir}/utils"
 
 notes=()
-push_notes ()
+push_note ()
 {
 	note="$1"
 	
@@ -47,7 +47,7 @@ check_prereq ()
 	fi
 	
 	pre_exists_u=("git")
-	for u in ${pre_exists_u[@]}
+	for u in "${pre_exists_u[@]}"
 	do
 		id -u "$u" 1>/dev/null 2>&1 || (echo "user $u not exists, you need install & configure some software"; exit -1)
 	done
@@ -64,19 +64,22 @@ mainuser_setting_up ()
 		echo "Add user \"adminbackup\" (HOME: ${target})"
 		test -d $(dirname "$target") || mkdir -p $(dirname "$target")
 		adduser --system --shell /bin/bash --gecos 'adminbackup' --group --disabled-password --home "$target" adminbackup
-		sudo -H -u adminbackup ssh-keygen -C "adminbackup@${host_id}" -N ""
+		
+		chown adminbackup:adminbackup "$target"
+		sudo -H -u adminbackup ssh-keygen -C "adminbackup@${host_id}" -N "" -f "${target}/.ssh/id_rsa"
 		
 		echo "Adding user \"adminbackup\" to group \"git\""
 		adduser adminbackup git
 	fi
-	push_notes "Don't forget to Copy server's public key(\"${target}/.ssh/id_rsa.pub\") to clients"
+	push_note "Don't forget to Copy server's public key(\"${target}/.ssh/id_rsa.pub\") to clients"
 }
 
 mklayout ()
 {
-	sudo -u adminbackup -g adminbackup mkdir -p "$logdir"
-	sudo -u adminbackup -g adminbackup mkdir -p "$datadir"
-	sudo -u git -g git mkdir -p "$TODOdir"
+	mkdir -p "$logdir" && chown adminbackup:adminbackup "$logdir"
+	mkdir -p "$datadir" && chown adminbackup:adminbackup "$datadir"
+
+	mkdir -p "$TODOdir" && chown git:git "$TODOdir"
 	chmod g+rwx "$TODOdir"
 }
 
@@ -85,16 +88,16 @@ install_scripts ()
 	exec_sources=("do_backup")
 	normal_sources=("backupconfig.sh" "cmds/git.sh" "cmds/sftp.sh" "utils/gitosis-admin.post-update" "utils/post-update.template" "utils/sendmail.py" "utils/utils.sh")
 	
-	for item in ${exec_sources[@]}
+	for item in "${exec_sources[@]}"
 	do
 		echo "install \"${item}\"-> \"${scriptsdir}/${item}\" [mode 755]"
 		install -p -D -m 755 -T "$item" "${scriptsdir}/${item}"
 	done
 	
-	for item in ${normal_sources[@]}
+	for item in "${normal_sources[@]}"
 	do
 		echo "install \"${item}\"-> \"${scriptsdir}/${item}\" [mode 744]"
-		install -p -D -m 744 -T "$item" "${scriptsdir}/${item}"
+		install -p -D -m 644 -T "$item" "${scriptsdir}/${item}"
 	done
 	
 	echo "Setting scripts execution environment"
@@ -109,12 +112,13 @@ install_scripts ()
 	read notifies
 	
 	settings[${#settings[@]}]="Administrator=($notifies)"
-	for setting in ${settings[@]}
+	for setting in "${settings[@]}"
 	do
 		key=$(echo "$setting" | cut -d "=" -f 1)
+		setting=${setting//\//\\\/}
 		sed -i "s/^[ \t]*${key}=.*/${setting}/g" "${scriptsdir}/backupconfig.sh"
 	done
-	push_notes "You can configure the backup system through \"${scriptsdir}/backupconfig.sh\""
+	push_note "You can configure the backup system through \"${scriptsdir}/backupconfig.sh\""
 }
 
 echo "Install backup server(${host_id}) to \"${target}\""
@@ -125,7 +129,7 @@ install_scripts
 
 echo
 echo "***Note***"
-for note in ${notes[@]}
+for note in "${notes[@]}"
 do
 	echo "$note"
 done

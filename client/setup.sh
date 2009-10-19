@@ -19,7 +19,7 @@ else
 	host_ip="$2"
 fi
 # canonicalize -> absolute_path
-target=$(readlink -f "$target")
+target=$(readlink -m "$target")
 
 logdir="${target}/log"
 sendrqdir="${logdir}/queues"
@@ -27,11 +27,11 @@ tmpdir="${target}/tmp"
 rqdir="${target}/requests"
 
 scriptsdir="${target}/scripts"
-cmdir="${scripts}/cmds"
-utilsdir="${scripts}/utils"
+cmdir="${scriptsdir}/cmds"
+utilsdir="${scriptsdir}/utils"
 
 notes=()
-push_notes ()
+push_note ()
 {
 	note="$1"
 	
@@ -48,7 +48,7 @@ check_prereq ()
 	fi
 	
 	pre_exists_u=("git" "www-data")
-	for u in ${pre_exists_u[@]}
+	for u in "${pre_exists_u[@]}"
 	do
 		id -u "$u" 1>/dev/null 2>&1 || (echo "user $u not exists, you need install & configure some software"; exit -1)
 	done
@@ -65,23 +65,24 @@ mainuser_setting_up ()
 		echo "Add user \"adminbackup\" (HOME: ${target})"
 		test -d $(dirname "$target") || mkdir -p $(dirname "$target")
 		adduser --system --shell /bin/bash --gecos 'adminbackup' --group --disabled-password --home "$target" adminbackup
-		
+		chown adminbackup:adminbackup "$target"
+
 		echo "Adding user \"adminbackup\" to group \"git\""
 		adduser adminbackup git
 		echo "Adding user \"adminbackup\" to group \"www-data\""
 		adduser adminbackup www-data
 	fi
-	push_notes "You need do visudo settings, add the following lines:"
-	push_notes "	adminbackup ALL = (root) NOPASSWD: /bin/chown, /bin/tar"
-	push_notes "	adminbackup ALL = (postgres) NOPASSWD: /usr/bin/pg_dump, /usr/bin/pg_dumpall"
+	push_note "You need do visudo settings, add the following lines:"
+	push_note "	adminbackup ALL = (root) NOPASSWD: /bin/chown, /bin/tar"
+	push_note "	adminbackup ALL = (postgres) NOPASSWD: /usr/bin/pg_dump, /usr/bin/pg_dumpall"
 }
 
 mklayout ()
 {
-	sudo -u adminbackup -g adminbackup mkdir -p "$logdir"
-	sudo -u adminbackup -g adminbackup mkdir -p "$tmpdir"
-	sudo -u adminbackup -g adminbackup mkdir -p "$rqdir"
-	sudo -u adminbackup -g adminbackup mkdir -p "$sendrqdir"
+	mkdir -p "$logdir" && chown adminbackup:adminbackup "$logdir"
+	mkdir -p "$tmpdir" && chown adminbackup:adminbackup "$tmpdir"
+	mkdir -p "$rqdir" && chown adminbackup:adminbackup "$rqdir"
+	mkdir -p "$sendrqdir" && chown adminbackup:adminbackup "$sendrqdir"
 }
 
 install_scripts ()
@@ -89,16 +90,16 @@ install_scripts ()
 	exec_sources=("backup_all" "send_request")
 	normal_sources=("backupconfig.sh" "backupconfig.py" "commitBackupRequest" "cmds/backup_FS" "cmds/backup_git" "cmds/backup_postgresdb" "cmds/dummy" "utils/sendmail.py" "utils/utils.sh")
 	
-	for item in ${exec_sources[@]}
+	for item in "${exec_sources[@]}"
 	do
 		echo "install \"${item}\"-> \"${scriptsdir}/${item}\" [mode 755]"
 		install -p -D -m 755 -T "$item" "${scriptsdir}/${item}"
 	done
 	
-	for item in ${normal_sources[@]}
+	for item in "${normal_sources[@]}"
 	do
 		echo "install \"${item}\"-> \"${scriptsdir}/${item}\" [mode 744]"
-		install -p -D -m 744 -T "$item" "${scriptsdir}/${item}"
+		install -p -D -m 644 -T "$item" "${scriptsdir}/${item}"
 	done
 	
 	echo "Setting scripts execution environment"
@@ -120,32 +121,34 @@ install_scripts ()
 	
 	echo "Input administrators' emails here, e.g 'hello@example.com' 'hello2@example.com' ..."
 	read notifies
-	settings[${#settings[@]}]="Administrator=($notifies)"
+	settings[${#settings[@]}]="Administrator=(${notifies})"
 	
-	for setting in ${settings[@]}
+	for setting in "${settings[@]}"
 	do
 		key=$(echo "$setting" | cut -d "=" -f 1)
+		setting=${setting//\//\\\/}
 		sed -i "s/^[ \t]*${key}=.*/${setting}/g" "${scriptsdir}/backupconfig.sh"
 	done
 	
-	for pysetting in ${pysettings[@]}
+	for pysetting in "${pysettings[@]}"
 	do
 		key=$(echo "$pysetting" | cut -d "=" -f 1)
 		val=$(echo "$pysetting" | cut -d "=" -f 2-)
-		sed -i "s/^[ \t]*${key}=.*/${key} = ${value}/g" "${scriptsdir}/backupconfig.py"
+		val=${val//\//\\\/}
+		sed -i "s/^[ \t]*${key}[ \t]*=.*/${key} = ${val}/g" "${scriptsdir}/backupconfig.py"
 	done
-	push_notes "You may need to configure the backup system through \"${scriptsdir}/backupconfig.sh\" & \"${scriptsdir}/backupconfig.py\""
+	push_note "You may need to configure the backup system through \"${scriptsdir}/backupconfig.sh\" & \"${scriptsdir}/backupconfig.py\""
 	
 	echo "Inititalize queue for default backup server: ${sendrqdir}/${default_backup_node}.git"
 	
 	sudo -u adminbackup git --git-dir="${sendrqdir}/${default_backup_node}.git" init
 	sudo -u adminbackup git --git-dir="${sendrqdir}/${default_backup_node}.git" config core.bare false
 	sudo -u adminbackup git --git-dir="${sendrqdir}/${default_backup_node}.git" remote add origin "ssh://git@${default_backup_node}/${host_ip}.git"
-	push_notes "To Add more backup server, add git control repo in ${sendrqdir}, give permissions through gitosis"
-	push_notes "Also, import servers' public key to ~adminbackup/.ssh/authorized_keys, change ~adminbackup/.ssh/config like this:"
-	push_notes "		Host 172.16.2.57"
-	push_notes "		  StrictHostKeyChecking no"
-	push_notes "		  UserKnownHostsFile=/dev/null"
+	push_note "To add more backup server, add *git control repo* in ${sendrqdir}, set permissions through global gitosis"
+	push_note "Also, import servers' public key to ~adminbackup/.ssh/authorized_keys, change ~adminbackup/.ssh/config like this:"
+	push_note "		Host 172.16.2.57"
+	push_note "		  StrictHostKeyChecking no"
+	push_note "		  UserKnownHostsFile=/dev/null"
 }
 
 echo "Install backup client(${host_ip}) to \"${target}\""
@@ -156,7 +159,7 @@ install_scripts
 
 echo
 echo "***Note***"
-for note in ${notes[@]}
+for note in "${notes[@]}"
 do
 	echo "$note"
 done
