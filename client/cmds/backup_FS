@@ -4,9 +4,7 @@ set -eu
 module="$1"
 source_dir="$2"
 
-name=$(base64<<EOF
-$source_dir
-EOF)
+name=$(echo -n "$source_dir" | base64)
 timestamp=$(date +%y-%m-%d_%H_%M_%S)
 
 target="${tmpDir}/${name} ${timestamp}.tar.lzma"

@@ -6,9 +6,7 @@ git_repo="$1"
 git_base="$(dirname "${git_base}/dummy")/"
 git_repo="${git_repo/#${git_base}/}"
 
-name=$(base64<<EOF
-$git_repo
-EOF)
+name=$(echo -n "$git_repo" | base64)
 
 add_queue "$name" "git ${Export_git}/${git_repo}"
 
