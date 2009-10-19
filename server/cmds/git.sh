@@ -4,15 +4,12 @@ set -eu
 url="$1"
 store_to="$2"
 
-export GIT_DIR="$store_to"
+GIT_DIR="$store_to"
+
 if test ! -e "$GIT_DIR"; then
-	git init --bare
-	git remote add origin "$url"
-	rmdir "${GIT_DIR}/refs/heads"
-	ln -ds "remotes/origin" "${GIT_DIR}/refs/heads"
-
+	git clone --mirror "$url" "$GIT_DIR"
 	touch "${GIT_DIR}/git-daemon-export-ok"
+else
+	git --git-dir="$GIT_DIR" remote update origin
 fi
-
-git remote update origin
 
