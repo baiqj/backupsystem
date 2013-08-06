@@ -8,5 +8,5 @@ git_repo="${git_repo/#${git_base}/}"
 
 name=$(echo -n "$git_repo" | base64)
 
-add_queue "$name" "git ${Export_git}/${git_repo}"
+add_queue "$name" "git ssh://$Export_ssh$git_base$git_repo"
 

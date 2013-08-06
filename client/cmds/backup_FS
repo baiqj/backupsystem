@@ -39,5 +39,5 @@ mv -f "$target" "${pub}"
 
 echo "backup_FS: \"$source_dir\" => \"${pub}\" successfully"
 
-add_queue "$name" "sftp ${timestamp} ${Export_sftp}:${pub}"
+add_queue "$name" "sftp ${timestamp} ${Export_ssh}:${pub}"
 

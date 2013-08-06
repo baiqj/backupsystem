@@ -1,28 +1,3 @@
 #!/bin/bash
-source "$(dirname $0)/backupconfig.sh"
-commitBackupRequest="$(dirname $0)/commitBackupRequest"
 
-backup="$1"
-
-for repo in ${git_base}/*
-do
-	if test -d "$repo"; then
-		case $(basename "$repo") in
-			'kernel.git')
-				echo "Ignore kernel.git."
-				;;
-			'gitosis-admin.git')
-				echo "Ignore gitosis-admin.git."
-				;;
-			*)	
-        		python "$commitBackupRequest" "git" "$repo" "$backup"
-				;;
-		esac
-	fi
-done
-
-python "$commitBackupRequest" "postgresdb" "" "$backup"
-python "$commitBackupRequest" "trac" "$trac" "$backup"
-python "$commitBackupRequest" "app" "$app" "$backup"
-python "$commitBackupRequest" "drupal" "$drupal" "$backup"
-
+$(dirname $0)/backup_it git ""

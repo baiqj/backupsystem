@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 default="/var/backup"
+backup_user="backupclient"
+backup_user_remote="backupsrv"
 
 help ()
 {
@@ -11,24 +13,12 @@ if test $# -lt 1 -o "$1" == "-h" -o "$1" == "--help"; then
 	help
 	exit 0
 elif test $# -lt 2; then
-	target="$default"
-	id -u "adminbackup" 1>/dev/null 2>&1 && target=~adminbackup
+	target=
 	host_ip="$1"
 else
 	target="$1"
 	host_ip="$2"
 fi
-# canonicalize -> absolute_path
-target=$(readlink -m "$target")
-
-logdir="${target}/log"
-sendrqdir="${logdir}/queues"
-tmpdir="${target}/tmp"
-rqdir="${target}/requests"
-
-scriptsdir="${target}/scripts"
-cmdir="${scriptsdir}/cmds"
-utilsdir="${scriptsdir}/utils"
 
 notes=()
 push_note ()
@@ -39,56 +29,87 @@ push_note ()
 	notes[len]="$note"
 }
 
-
-check_prereq ()
+create_backup_user()
 {
-	if test "$(id -u $(whoami))" -ne 0; then
-		echo "please run this script as root"
-		exit -1
-	fi
+	echo "Creating user '$backup_user' with HOME='$target'"
+	test -d $(dirname "$target") || mkdir -p $(dirname "$target")
+	adduser --system --shell /bin/bash --gecos "$backup_user" --group --disabled-password --home "$target" "$backup_user"
+	sudo -H -u "$backup_user" ssh-keygen -C "$backup_user@$host_id" -N "" -f "$target/.ssh/id_rsa"
 	
-	pre_exists_u=("git" "www-data")
-	for u in "${pre_exists_u[@]}"
-	do
-		id -u "$u" 1>/dev/null 2>&1 || (echo "user $u not exists, you need install & configure some software"; exit -1)
-	done
+	push_note "Don't forget to import client's public key('$target/.ssh/id_rsa.pub') to \
+backup server's gitosis-admin.git"
+
+	push_note "Adding user '$backup_user' to related group to grant access perms, e.g."
+	push_note "	adduser $backup_user git; adduser $backup_user www-data"
+
+	push_note "You need do visudo settings, add the following lines:"
+	push_note "	$backup_user ALL = (root) NOPASSWD: /bin/chown, /bin/tar"
+	push_note "	$backup_user ALL = (postgres) NOPASSWD: /usr/bin/pg_dump, /usr/bin/pg_dumpall"
 }
 
-mainuser_setting_up ()
+check_prereq()
 {
-	local mainuser_exists=1
-	id -u "adminbackup" 1>/dev/null 2>&1 || mainuser_exists=0
-	
-	if test $mainuser_exists -eq 1; then
-		test ~adminbackup = "$target" || (echo "install_path \"$target\" isn't HOME of existing user adminbackup"; exit -1)
-	else
-		echo "Add user \"adminbackup\" (HOME: ${target})"
-		test -d $(dirname "$target") || mkdir -p $(dirname "$target")
-		adduser --system --shell /bin/bash --gecos 'adminbackup' --group --disabled-password --home "$target" adminbackup
-		chown adminbackup:adminbackup "$target"
+	local backup_user_exists=1
 
-		echo "Adding user \"adminbackup\" to group \"git\""
-		adduser adminbackup git
-		echo "Adding user \"adminbackup\" to group \"www-data\""
-		adduser adminbackup www-data
+	if test "$(id -u $(whoami))" -ne 0; then
+		echo "please run this script as root" >&2
+		exit 2
 	fi
-	push_note "You need do visudo settings, add the following lines:"
-	push_note "	adminbackup ALL = (root) NOPASSWD: /bin/chown, /bin/tar"
-	push_note "	adminbackup ALL = (postgres) NOPASSWD: /usr/bin/pg_dump, /usr/bin/pg_dumpall"
+
+	if id -u "$backup_user" &> /dev/null; then
+		backup_user_exists=1
+		target="$(eval echo ~$backup_user)"
+	else
+		backup_user_exists=0
+		test -n "$target" || target="$default"
+	fi
+
+	read -p "Please specify /path/to/send_mail:" send_mail
+	read -p "Please specify notification email(a@e.com b@e.com...):" notification_emails
+	read -p "Please specify default backup server' URL:" default_backup_server
+
+	# canonicalize -> absolute_path
+	target=$(readlink -m "$target")
+
+	logdir="${target}/log"
+	sendrqdir="${logdir}/queues"
+	tmpdir="${target}/tmp"
+	rqdir="${target}/requests"
+
+	scriptsdir="${target}/scripts"
+	cmdir="${scriptsdir}/cmds"
+	utilsdir="${scriptsdir}/utils"
+
+	echo "Backup WorkingDir set to '$target'"
+	test $backup_user_exists -eq 1 || echo "Will create dedicated user $backup_user"
+	echo "send_mail: '$send_mail'"
+	echo "Notification emails: $notification_emails"
+	echo "Default backup server: $default_backup_server"
+	read -p "Is above OK?(y/N)" answer
+
+	if test "$answer" != "y"; then
+		echo "Bye"
+		exit 1
+	fi
+
+	if test $backup_user_exists -eq 0; then
+		create_backup_user
+	fi
 }
 
 mklayout ()
 {
-	mkdir -p "$logdir" && chown adminbackup:adminbackup "$logdir"
-	mkdir -p "$tmpdir" && chown adminbackup:adminbackup "$tmpdir"
-	mkdir -p "$rqdir" && chown adminbackup:adminbackup "$rqdir"
-	mkdir -p "$sendrqdir" && chown adminbackup:adminbackup "$sendrqdir"
+	for dir in "$logdir" "$tmpdir" "$rqdir" "$sendrqdir"
+	do
+                mkdir -p "$dir"
+                chown "$backup_user:$backup_user" "$dir"
+        done
 }
 
 install_scripts ()
 {
 	exec_sources=("backup_all" "send_request")
-	normal_sources=("backupconfig.sh" "backupconfig.py" "commitBackupRequest" "cmds/backup_FS" "cmds/backup_git" "cmds/backup_postgresdb" "cmds/dummy" "utils/sendmail.py" "utils/utils.sh")
+	normal_sources=("backupconfig.sh" "backupconfig.py" "commitBackupRequest" "cmds/backup_FS" "cmds/backup_git" "cmds/backup_postgresdb" "cmds/dummy" "utils/utils.sh")
 	
 	for item in "${exec_sources[@]}"
 	do
@@ -109,51 +130,49 @@ install_scripts ()
 		"SendQueue=\"${sendrqdir}\""
 		"tmpDir=\"${tmpdir}\""
 		"UtilsDir=\"$utilsdir\""
+		"Cmdir=\"$cmdir\""
 		"LogfileDir=\"$logdir\""
+		"Sendmail=\"$send_mail\""
+		"Administrators=\"$notification_emails\""
+		"DefaultBackupNode=\"ssh://$backup_user_remote@$default_backup_server/$host_ip.git\""
 	)
-	pysettings=(
-		"RequestDir=\"${rqdir}\""
-	)
-	echo "Input URL of default backup server:"
-	read default_backup_node
-	settings[${#settings[@]}]="DefaultBackupNode=\"ssh://git@${default_backup_node}/${host_ip}.git\""
-	pysettings[${#pysettings[@]}]="DefaultBackupNode=\"${default_backup_node}\""
-	
-	echo "Input administrators' emails here, e.g 'hello@example.com' 'hello2@example.com' ..."
-	read notifies
-	settings[${#settings[@]}]="Administrator=(${notifies})"
-	
+
 	for setting in "${settings[@]}"
 	do
 		key=$(echo "$setting" | cut -d "=" -f 1)
-		setting=${setting//\//\\\/}
-		sed -i "s/^[ \t]*${key}=.*/${setting}/g" "${scriptsdir}/backupconfig.sh"
+		sed -i "s|^[ \t]*${key}=.*|${setting}|g" "${scriptsdir}/backupconfig.sh"
 	done
 	
-	for pysetting in "${pysettings[@]}"
-	do
-		key=$(echo "$pysetting" | cut -d "=" -f 1)
-		val=$(echo "$pysetting" | cut -d "=" -f 2-)
-		val=${val//\//\\\/}
-		sed -i "s/^[ \t]*${key}[ \t]*=.*/${key} = ${val}/g" "${scriptsdir}/backupconfig.py"
-	done
-	push_note "You may need to configure the backup system through \"${scriptsdir}/backupconfig.sh\" & \"${scriptsdir}/backupconfig.py\""
+	push_note "You may need to configure the backup system through '$scriptsdir/backupconfig.sh'"
 	
-	echo "Inititalize queue for default backup server: ${sendrqdir}/${default_backup_node}.git"
-	
-	sudo -u adminbackup git --git-dir="${sendrqdir}/${default_backup_node}.git" init
-	sudo -u adminbackup git --git-dir="${sendrqdir}/${default_backup_node}.git" config core.bare false
-	sudo -u adminbackup git --git-dir="${sendrqdir}/${default_backup_node}.git" remote add origin "ssh://git@${default_backup_node}/${host_ip}.git"
-	push_note "To add more backup server, add *git control repo* in ${sendrqdir}, set permissions through global gitosis"
-	push_note "Also, import servers' public key to ~adminbackup/.ssh/authorized_keys, change ~adminbackup/.ssh/config like this:"
-	push_note "		Host 172.16.2.57"
-	push_note "		  StrictHostKeyChecking no"
-	push_note "		  UserKnownHostsFile=/dev/null"
+	echo "Inititalize queue for default backup server: $sendrqdir/$default_backup_server.git"
+	sudo -u "$backup_user" git --git-dir="$sendrqdir/$default_backup_server.git" init
+	sudo -u "$backup_user" git --git-dir="$sendrqdir/$default_backup_server.git" config core.bare false
+	sudo -u "$backup_user" git --git-dir="$sendrqdir/$default_backup_server.git" \
+	  remote add origin "ssh://$backup_user_remote@$default_backup_server/$host_ip.git"
+	push_note "To add more backup server, add *git control repo* in '$sendrqdir', \
+set permissions through global gitosis"
+	push_note "Also, import servers' public key to $backup_user/.ssh/authorized_keys, and"
+	push_note "Modify $backup_user/.ssh/config like this:"
+	push_note "Host $default_backup_server"
+	push_note "  StrictHostKeyChecking no"
+	push_note "  UserKnownHostsFile=/dev/null"
+
+	echo "Updating /etc/crontab ..."
+	sed -i -e "/\/send_request/d" \
+	  -e "\$a 0-59/5 * * * * $backup_user '$scriptsdir/send_request'" \
+	  /etc/crontab
+	push_note "Note: for periodic backup, add entries to /etc/crontab, e.g."
+	push_note "0 23 11 * * $backup_user '$scriptsdir/backup_all' &>/dev/null"
+
+	push_note "To enable git *realtime* backup, \
+add the following line to .git/hooks/post-update:"
+	push_note "  sudo -u $backup_user python '$scriptsdir/commitBackupRequest' \
+git \"\$GIT_DIR\" &>/dev/null"
+	push_note " and, visudo: 'git ALL = ($backup_user) NOPASSWD: /usr/bin/python'"
 }
 
-echo "Install backup client(${host_ip}) to \"${target}\""
 check_prereq
-mainuser_setting_up
 mklayout
 install_scripts
 
@@ -163,14 +182,4 @@ for note in "${notes[@]}"
 do
 	echo "$note"
 done
-
-echo "Don't forget to set cron, e.g. add the following lines to /etc/crontab:"
-echo "	0-59/5 * * * * adminbackup /var/backup/scripts/send_request"
-echo "	0    23 11 * * adminbackup /var/backup/scripts/backup_all 1>/dev/null
-2>&1"
-
-echo "To enable backup git repo in *realtime*, add the following line to .git/hooks/post-update:"
-echo "	sudo -u adminbackup python \"${scriptsdir}/commitBackupRequest\" git
-\"$PWD\" 1>/dev/null 2>&1"
-echo "	to make the above work, visudo: git ALL = (adminbackup) NOPASSWD: /usr/bin/python"
 

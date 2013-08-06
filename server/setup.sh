@@ -1,10 +1,11 @@
 #!/bin/bash
 set -e
 default="/data/backup"
+backup_user="backupsrv"
 
-help ()
+help()
 {
-	echo "You need install gitosis first"
+	echo "You need install gitosis first(https://github.com/cee1/gitosis-hack.git)"
 	echo "setup.sh <host-id> [path]"
 }
 
@@ -12,81 +13,97 @@ if test $# -lt 1 -o "$1" == "-h" -o "$1" == "--help"; then
 	help
 	exit 0
 elif test $# -lt 2; then
-	target="$default"
-	id -u "adminbackup" 1>/dev/null 2>&1 && target=~adminbackup
+	target=
 	host_id="$1"
 else
 	target="$1"
 	host_id="$2"
 fi
-# canonicalize -> absolute_path
-target=$(readlink -m "$target")
 
-logdir="${target}/log"
-datadir="${target}/data"
-TODOdir="${target}/TODO"
-scriptsdir="${target}/scripts"
-cmdir="${scriptsdir}/cmds"
-utilsdir="${scriptsdir}/utils"
 
 notes=()
-push_note ()
+push_note()
 {
-	note="$1"
+	local note="$1"
 	
 	local len=${#notes[@]}
 	notes[len]="$note"
 }
 
-
-check_prereq ()
+create_backup_user()
 {
-	if test "$(id -u $(whoami))" -ne 0; then
-		echo "please run this script as root"
-		exit -1
-	fi
+	echo "Creating user '$backup_user' with HOME='$target'"
+	test -d $(dirname "$target") || mkdir -p $(dirname "$target")
+	adduser --system --shell /bin/bash --gecos "$backup_user" --group --disabled-password --home "$target" "$backup_user"
+	sudo -H -u "$backup_user" ssh-keygen -C "$backup_user@$host_id" -N "" -f "$target/.ssh/id_rsa"
 	
-	pre_exists_u=("git")
-	for u in "${pre_exists_u[@]}"
+	push_note "Don't forget to Copy server's public key('$target/.ssh/id_rsa.pub') to clients"
+}
+
+check_prereq()
+{
+	local backup_user_exists=1
+
+	if test "$(id -u $(whoami))" -ne 0; then
+		echo "please run this script as root" >&2
+		exit 2
+	fi
+
+	if ! which gitosis-init &> /dev/null; then
+		echo "You must install gitosis first" >&2
+		exit 2
+	fi
+
+	if id -u "$backup_user" &> /dev/null; then
+		backup_user_exists=1
+		target="$(eval echo ~$backup_user)"
+	else
+		backup_user_exists=0
+		test -n "$target" || target="$default"
+	fi
+
+	read -p "Please specify /path/to/send_mail:" send_mail
+	read -p "Please specify notification email(a@e.com b@e.com...):" notification_emails
+
+	# canonicalize -> absolute_path
+	target=$(readlink -m "$target")
+
+	logdir="${target}/log"
+	datadir="${target}/data"
+	TODOdir="${target}/TODO"
+	scriptsdir="${target}/scripts"
+	cmdir="${scriptsdir}/cmds"
+	utilsdir="${scriptsdir}/utils"
+
+	echo "Backup WorkingDir set to '$target'"
+	test $backup_user_exists -eq 1 || echo "Will create dedicated user $backup_user"
+	echo "send_mail: '$send_mail'"
+	echo "Notification emails: $notification_emails"
+	read -p "Is above OK?(y/N)" answer
+
+	if test "$answer" != "y"; then
+		echo "Bye"
+		exit 1
+	fi
+
+	if test $backup_user_exists -eq 0; then
+		create_backup_user
+	fi
+}
+
+mklayout()
+{
+	for dir in "$logdir" "$datadir" "$TODOdir"
 	do
-		id -u "$u" 1>/dev/null 2>&1 || (echo "user $u not exists, you need install & configure some software"; exit -1)
+		mkdir -p "$dir"
+		chown "$backup_user:$backup_user" "$dir"
 	done
 }
 
-mainuser_setting_up ()
-{
-	local mainuser_exists=1
-	id -u "adminbackup" 1>/dev/null 2>&1 || mainuser_exists=0
-	
-	if test $mainuser_exists -eq 1; then
-		test ~adminbackup = "$target" || (echo "install_path \"$target\" isn't HOME of existing user adminbackup"; exit -1)
-	else
-		echo "Add user \"adminbackup\" (HOME: ${target})"
-		test -d $(dirname "$target") || mkdir -p $(dirname "$target")
-		adduser --system --shell /bin/bash --gecos 'adminbackup' --group --disabled-password --home "$target" adminbackup
-		
-		chown adminbackup:adminbackup "$target"
-		sudo -H -u adminbackup ssh-keygen -C "adminbackup@${host_id}" -N "" -f "${target}/.ssh/id_rsa"
-		
-		echo "Adding user \"adminbackup\" to group \"git\""
-		adduser adminbackup git
-	fi
-	push_note "Don't forget to Copy server's public key(\"${target}/.ssh/id_rsa.pub\") to clients"
-}
-
-mklayout ()
-{
-	mkdir -p "$logdir" && chown adminbackup:adminbackup "$logdir"
-	mkdir -p "$datadir" && chown adminbackup:adminbackup "$datadir"
-
-	mkdir -p "$TODOdir" && chown git:git "$TODOdir"
-	chmod g+rwx "$TODOdir"
-}
-
-install_scripts ()
+install_scripts()
 {
 	exec_sources=("do_backup" "bkdb")
-	normal_sources=("backupconfig.sh" "cmds/git.sh" "cmds/sftp.sh" "utils/gitosis-admin.post-update" "utils/post-update.template" "utils/sendmail.py" "utils/utils.sh" "utils/colorful.py")
+	normal_sources=("backupconfig.sh" "cmds/git.sh" "cmds/sftp.sh" "utils/gitosis-admin.post-update" "utils/post-update.template" "utils/utils.sh" "utils/colorful.py")
 	
 	for item in "${exec_sources[@]}"
 	do
@@ -99,31 +116,40 @@ install_scripts ()
 		echo "install \"${item}\"-> \"${scriptsdir}/${item}\" [mode 744]"
 		install -p -D -m 644 -T "$item" "${scriptsdir}/${item}"
 	done
-	
+
+	echo "Initializing gitosis ..."
+	sudo -H -u "$backup_user" gitosis-init < "$target/.ssh/id_rsa"
+	sed -i -e "/gitosis-admin.post-update/d" \
+	  -e "\$a python '$scriptsdir/utils/gitosis-admin.post-update'" \
+	  "$target/repositories/gitosis-admin.git/hooks/post-update"
+	chmod +x "$target/repositories/gitosis-admin.git/hooks/post-update"
+
 	echo "Setting scripts execution environment"
 	settings=(
 		"Host=\"$host_id\""
 		"TODOdir=\"$TODOdir\""
+		"Datadir=\"$datadir\""
 		"Cmdir=\"$cmdir\""
 		"UtilsDir=\"$utilsdir\""
 		"LogfileDir=\"$logdir\""
+		"Sendmail=\"$send_mail\""
+		"Administrators=\"$notification_emails\""
 	)
-	echo "Input administrators' emails here, e.g 'hello@example.com' 'hello2@example.com' ..."
-	read notifies
 	
-	settings[${#settings[@]}]="Administrator=($notifies)"
 	for setting in "${settings[@]}"
 	do
 		key=$(echo "$setting" | cut -d "=" -f 1)
-		setting=${setting//\//\\\/}
-		sed -i "s/^[ \t]*${key}=.*/${setting}/g" "${scriptsdir}/backupconfig.sh"
+		sed -i "s|^[ \t]*$key=.*|$setting|g" "$scriptsdir/backupconfig.sh"
 	done
-	push_note "You can configure the backup system through \"${scriptsdir}/backupconfig.sh\""
+	push_note "You can configure the backup system through \"$scriptsdir/backupconfig.sh\""
+
+	echo "Updating /etc/crontab ..."
+	sed -i -e "/\/do_backup/d" \
+	  -e "\$a 0-59/5 * * * * $backup_user '$scriptsdir/do_backup'" \
+	  /etc/crontab
 }
 
-echo "Install backup server(${host_id}) to \"${target}\""
 check_prereq
-mainuser_setting_up
 mklayout
 install_scripts
 
@@ -133,9 +159,6 @@ for note in "${notes[@]}"
 do
 	echo "$note"
 done
-echo "After configured gitosis, do the following:"
-echo -e "\techo -e \"\npython \\\"${scriptsdir}/utils/gitosis-admin.post-update\\\"\" >>~git/repositories/gitosis-admin.git/hooks/post-update"
-echo "Don't forget to set cron, e.g. add the following line to /etc/crontab:"
-echo -e "\t0-59/5 * * * * adminbackup ${scriptsdir}/do_backup"
-echo "You can additionally set apache to export git, you need to add user \"www-data\" to group \"adminbackup\""
+
+echo "You can additionally set apache to export git, you need to add user \"www-data\" to group \"$backup_user\""
 

@@ -1,8 +1,8 @@
 #!/bin/bash
-source "$(dirname $0)/backupconfig.sh"
-source "${UtilsDir}/utils.sh"
+. "$(dirname $0)/backupconfig.sh"
+. "$UtilsDir/utils.sh"
 
-Logfile="${LogfileDir}/$(date +%y-%m)"
+Logfile="$LogfileDir/$(date +%y-%m)"
 
 Launch_time=$(date)
 
@@ -60,7 +60,7 @@ function ProcessRquest {
 (
 flock -xn 300
 
-for N in ${TODOdir}/*
+for N in "$TODOdir"/*
 do
 	if test -d "$N"; then
 		pushd "$N" || continue
@@ -73,7 +73,11 @@ do
 			mv -f "$P" "F${P:1}"
 		done
 		if test -s "$resumelog"; then
-			python "${UtilsDir}/sendmail.py" "[${Host}][${Launch_time}]resume backup:" "$resumelog" "${Administrator[@]}"
+			"$Sendmail" -i $Administrators <<EOF
+Subject: [${Host}][${Launch_time}] resume backup
+
+$resumelog
+EOF
 		fi
 		rm -f "$resumelog"
 
@@ -88,8 +92,12 @@ do
 		done
 		
 		if test -s "$failog"; then
-			echo "Some error happens in backup ${Host} => ${N}, notifies ${Administrator[@]}..."
-			python "${UtilsDir}/sendmail.py" "[${Host}][${Launch_time}]errors in backup:" "$failog" "${Administrator[@]}"
+			echo "Some error happens in backup ${Host} => ${N}, notifies $Administrators..."
+			"$Sendmail" -i $Administrators <<EOF
+Subject: [${Host}][${Launch_time}] errors in backup
+
+$failog
+EOF
 		fi
 		rm -f "$failog"
 

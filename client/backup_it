@@ -1,0 +1,31 @@
+#!/bin/bash
+set -u
+
+. "$(dirname $0)/backupconfig.sh"
+commitBackupRequest="$(dirname $0)/commitBackupRequest"
+
+op="$1"
+backup_srv="$2"
+
+case "$op" in
+	git)
+		find -type d -name '*.git' "$git_base" -exec \
+		  "$commitBackupRequest" git {} "$backup_srv" \;
+		;;
+	postgresdb)
+		"$commitBackupRequest" "postgresdb" "" "$backup_srv"
+		;;
+	trac)
+		"$commitBackupRequest" "trac" "$trac" "$backup_srv"
+		;;
+	app)
+		"$commitBackupRequest" "app" "$app" "$backup_srv"
+		;;
+	drupal)
+		"$commitBackupRequest" "drupal" "$drupal" "$backup_srv"
+		;;
+	*)
+		echo "Unknown OP $op"
+		exit 1
+esac
+

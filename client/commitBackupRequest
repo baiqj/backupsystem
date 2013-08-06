@@ -1,5 +1,7 @@
-#!/usr/bin/python
+#!/bin/sh
 # -*- coding: utf-8 -*-
+"""." "`dirname "$0"`/backupconfig.sh"
+exec python "$0" "$@" """#"
 
 import os, sys, fcntl, os.path, logging
 from base64 import urlsafe_b64encode

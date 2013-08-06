@@ -1,6 +1,6 @@
 #!/bin/bash
-source "$(dirname $0)/backupconfig.sh"
-source "${UtilsDir}/utils.sh"
+. "$(dirname $0)/backupconfig.sh"
+. "${UtilsDir}/utils.sh"
 
 Launch_time=$(date)
 
@@ -44,8 +44,12 @@ do
 			mv -f "$P" "F${P:1}"
 		done
 		
-		if test -s "$resumelog"; then	
-			python "${UtilsDir}/sendmail.py" "[${Host}][${Launch_time}]resume backup:" "$resumelog" "${Administrator[@]}"
+		if test -s "$resumelog"; then
+			"$Sendmail" -i $Administrators <<EOF
+Subject: [${Host}][${Launch_time}] resume backup
+
+$resumelog
+EOF
 		fi
 		rm -f "$resumelog"
 		
@@ -89,8 +93,12 @@ do
 		)
 
 		if test -s "$failog"; then
-			echo "Some error happens in backup ${Host} => ${N}, notifies ${Administrator[@]}..."
-			python "${UtilsDir}/sendmail.py" "[${Host}][${Launch_time}]errors in backup:" "$failog" "${Administrator[@]}"
+			echo "Some error happens in backup ${Host} => ${N}, notifies $Administrators..."
+			"$Sendmail" -i $Administrators <<EOF
+Subject: [${Host}][${Launch_time}]errors in backup
+
+$failog
+EOF
 		fi
 		rm -f "$failog"
 
