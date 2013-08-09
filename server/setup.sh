@@ -71,11 +71,15 @@ check_prereq()
 		test -n "$target" || target="$default"
 	fi
 
-	read -p "Please specify /path/to/send_mail:" send_mail
-	read -p "Please specify notification email(a@e.com b@e.com...):" notification_emails
+	read -p "Please specify /path/to/send_mail: " send_mail
+	read -p "Please specify notification email(a@e.com b@e.com...): " notification_emails
+	read -p "Please specify /path/to/admin_public_key: " admin_pubkey
+	admin_pubkey="$(eval echo "$admin_pubkey")"
 
 	# canonicalize -> absolute_path
 	target=$(readlink -m "$target")
+	send_mail=$(readlink -m "$send_mail")
+	admin_pubkey=$(readlink -m "$admin_pubkey")
 
 	logdir="${target}/log"
 	datadir="${target}/data"
@@ -88,6 +92,7 @@ check_prereq()
 	test $backup_user_exists -eq 1 || echo "Will create dedicated user $backup_user"
 	echo "send_mail: '$send_mail'"
 	echo "Notification emails: $notification_emails"
+	echo "Administrator's public key: '$admin_pubkey'"
 	read -p "Is above OK?(y/N)" answer
 
 	if test "$answer" != "y"; then
@@ -111,8 +116,10 @@ mklayout()
 
 install_scripts()
 {
+	local cwd=$(pwd)
+
 	exec_sources=("do_backup" "bkdb")
-	normal_sources=("backupconfig.sh" "cmds/git.sh" "cmds/sftp.sh" "utils/gitosis-admin.post-update" "utils/post-update.template" "utils/utils.sh" "utils/colorful.py")
+	normal_sources=("backupconfig.sh" "cmds/git.sh" "cmds/sftp.sh" "utils/post-update.template" "utils/backupProp.py" "utils/utils.sh" "utils/colorful.py")
 	
 	for item in "${exec_sources[@]}"
 	do
@@ -125,13 +132,6 @@ install_scripts()
 		echo "install \"${item}\"-> \"${scriptsdir}/${item}\" [mode 744]"
 		install -p -D -m 644 -T "$item" "${scriptsdir}/${item}"
 	done
-
-	echo "Initializing gitosis ..."
-	sudo -H -u "$backup_user" gitosis-init < "$target/.ssh/id_rsa"
-	sed -i -e "/gitosis-admin.post-update/d" \
-	  -e "\$a python '$scriptsdir/utils/gitosis-admin.post-update'" \
-	  "$target/repositories/gitosis-admin.git/hooks/post-update"
-	chmod +x "$target/repositories/gitosis-admin.git/hooks/post-update"
 
 	echo "Setting scripts execution environment"
 	settings=(
@@ -151,6 +151,23 @@ install_scripts()
 		sed -i "s|^[ \t]*$key=.*|$setting|g" "$scriptsdir/backupconfig.sh"
 	done
 	push_note "You can configure the backup system through \"$scriptsdir/backupconfig.sh\""
+
+	echo "Initializing gitosis ..."
+	sudo -H -u "$backup_user" gitosis-init < "$admin_pubkey"
+	cd "$target/repositories/gitosis-admin.git"
+
+	sudo -H -u "$backup_user" git --git-dir="." --work-tree="gitosis-export" \
+	  checkout -f HEAD
+	sed -i -e "/extProps[\t ]*=/d" \
+	  -e "/[\t ]*gitosis[\t ]*$/a \
+	extProps\t = ${utilsdir#$target/}/backupProp.py" gitosis-export/gitosis.conf
+	sudo -H -u "$backup_user" git --git-dir="." --work-tree="gitosis-export" \
+	  add gitosis.conf
+	sudo -H -u "$backup_user" git --git-dir="." --work-tree="gitosis-export" \
+	  commit --amend -m "Backup system: set gitosis.extProps"
+	mv -f gitosis-export/gitosis.conf .
+
+	cd "$cwd"
 
 	echo "Updating '$crontab' ..."
 	sed -i -e "/\/do_backup/d" \
