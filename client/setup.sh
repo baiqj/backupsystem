@@ -109,6 +109,8 @@ mklayout ()
 
 install_scripts ()
 {
+	local cwd=$(pwd)
+
 	exec_sources=("backup_all" "send_request")
 	normal_sources=("backupconfig.sh" "backupconfig.py" "commitBackupRequest" "cmds/backup_FS" "cmds/backup_git" "cmds/backup_postgresdb" "cmds/dummy" "utils/utils.sh")
 	
@@ -147,10 +149,13 @@ install_scripts ()
 	push_note "You may need to configure the backup system through '$scriptsdir/backupconfig.sh'"
 	
 	echo "Inititalize queue for default backup server: $sendrqdir/$default_backup_server.git"
+	cd /
 	sudo -u "$backup_user" git --git-dir="$sendrqdir/$default_backup_server.git" init
 	sudo -u "$backup_user" git --git-dir="$sendrqdir/$default_backup_server.git" config core.bare false
 	sudo -u "$backup_user" git --git-dir="$sendrqdir/$default_backup_server.git" \
 	  remote add origin "ssh://$backup_user_remote@$default_backup_server/$host_ip.git"
+	cd "$cwd"
+
 	push_note "To add more backup server, add *git control repo* in '$sendrqdir', \
 set permissions through global gitosis"
 	push_note "Also, import servers' public key to $backup_user/.ssh/authorized_keys, and"
