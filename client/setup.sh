@@ -57,6 +57,14 @@ check_prereq()
 		exit 2
 	fi
 
+	echo "Locating crontab ..."
+	for crontab in "/etc/crontab" "/var/spool/cron/root";
+	do
+		if test -f "$crontab"; then
+			break
+		fi
+	done
+
 	if id -u "$backup_user" &> /dev/null; then
 		backup_user_exists=1
 		target="$(eval echo ~$backup_user)"
@@ -164,11 +172,10 @@ set permissions through global gitosis"
 	push_note "  StrictHostKeyChecking no"
 	push_note "  UserKnownHostsFile=/dev/null"
 
-	echo "Updating /etc/crontab ..."
+	echo "Updating '$crontab' ..."
 	sed -i -e "/\/send_request/d" \
-	  -e "\$a 0-59/5 * * * * $backup_user '$scriptsdir/send_request'" \
-	  /etc/crontab
-	push_note "Note: for periodic backup, add entries to /etc/crontab, e.g."
+	  -e "\$a 0-59/5 * * * * $backup_user '$scriptsdir/send_request'" "$crontab"
+	push_note "Note: for periodic backup, add entries to '$crontab', e.g."
 	push_note "0 23 11 * * $backup_user '$scriptsdir/backup_all' &>/dev/null"
 
 	push_note "To enable git *realtime* backup, \

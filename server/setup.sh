@@ -55,6 +55,14 @@ check_prereq()
 		exit 2
 	fi
 
+	echo "Locating crontab ..."
+	for crontab in "/etc/crontab" "/var/spool/cron/root";
+	do
+		if test -f "$crontab"; then
+			break
+		fi
+	done
+
 	if id -u "$backup_user" &> /dev/null; then
 		backup_user_exists=1
 		target="$(eval echo ~$backup_user)"
@@ -144,10 +152,9 @@ install_scripts()
 	done
 	push_note "You can configure the backup system through \"$scriptsdir/backupconfig.sh\""
 
-	echo "Updating /etc/crontab ..."
+	echo "Updating '$crontab' ..."
 	sed -i -e "/\/do_backup/d" \
-	  -e "\$a 0-59/5 * * * * $backup_user '$scriptsdir/do_backup'" \
-	  /etc/crontab
+	  -e "\$a 0-59/5 * * * * $backup_user '$scriptsdir/do_backup'" "$crontab"
 }
 
 check_prereq
