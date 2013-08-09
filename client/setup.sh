@@ -158,6 +158,7 @@ install_scripts ()
 	
 	echo "Inititalize queue for default backup server: $sendrqdir/$default_backup_server.git"
 	cd /
+	rm -rf "$sendrqdir/$default_backup_server.git"
 	sudo -u "$backup_user" git --git-dir="$sendrqdir/$default_backup_server.git" init
 	sudo -u "$backup_user" git --git-dir="$sendrqdir/$default_backup_server.git" config core.bare false
 	sudo -u "$backup_user" git --git-dir="$sendrqdir/$default_backup_server.git" \
