@@ -33,14 +33,15 @@ create_backup_user()
 {
 	echo "Creating user '$backup_user' with HOME='$target'"
 	test -d $(dirname "$target") || mkdir -p $(dirname "$target")
-	adduser --system --shell /bin/bash --gecos "$backup_user" --group --disabled-password --home "$target" "$backup_user"
+	useradd --system --shell /bin/bash --comment "$backup_user" --user-group --create-home \
+	  --home-dir "$target" "$backup_user"
 	sudo -H -u "$backup_user" ssh-keygen -C "$backup_user@$host_id" -N "" -f "$target/.ssh/id_rsa"
 	
 	push_note "Don't forget to import client's public key('$target/.ssh/id_rsa.pub') to \
 backup server's gitosis-admin.git"
 
 	push_note "Adding user '$backup_user' to related group to grant access perms, e.g."
-	push_note "	adduser $backup_user git; adduser $backup_user www-data"
+	push_note "	useradd -a $backup_user -G git; useradd -a $backup_user -G www-data"
 
 	push_note "You need do visudo settings, add the following lines:"
 	push_note "	$backup_user ALL = (root) NOPASSWD: /bin/chown, /bin/tar"

@@ -34,7 +34,8 @@ create_backup_user()
 {
 	echo "Creating user '$backup_user' with HOME='$target'"
 	test -d $(dirname "$target") || mkdir -p $(dirname "$target")
-	adduser --system --shell /bin/bash --gecos "$backup_user" --group --disabled-password --home "$target" "$backup_user"
+	useradd --system --shell /bin/bash --comment "$backup_user" --user-group --create-home \
+	  --home-dir "$target" "$backup_user"
 	sudo -H -u "$backup_user" ssh-keygen -C "$backup_user@$host_id" -N "" -f "$target/.ssh/id_rsa"
 	
 	push_note "Don't forget to Copy server's public key('$target/.ssh/id_rsa.pub') to clients"
