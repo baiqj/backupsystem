@@ -35,7 +35,7 @@ create_backup_user()
 	test -d $(dirname "$target") || mkdir -p $(dirname "$target")
 	useradd --system --shell /bin/bash --comment "$backup_user" --user-group --create-home \
 	  --home-dir "$target" "$backup_user"
-	sudo -H -u "$backup_user" ssh-keygen -C "$backup_user@$host_id" -N "" -f "$target/.ssh/id_rsa"
+	sudo -H -u "$backup_user" ssh-keygen -C "$backup_user@$host_ip" -N "" -f "$target/.ssh/id_rsa"
 	
 	push_note "Don't forget to import client's public key('$target/.ssh/id_rsa.pub') to \
 backup server's gitosis-admin.git"
