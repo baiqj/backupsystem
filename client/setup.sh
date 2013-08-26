@@ -16,8 +16,8 @@ elif test $# -lt 2; then
 	target=
 	host_ip="$1"
 else
-	target="$1"
-	host_ip="$2"
+	host_ip="$1"
+	target="$2"
 fi
 
 notes=()

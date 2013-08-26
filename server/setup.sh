@@ -6,7 +6,7 @@ backup_user="backupsrv"
 help()
 {
 	echo "You need install gitosis first(https://github.com/cee1/gitosis-hack.git)"
-	echo "setup.sh <host-id> [path]"
+	echo "setup.sh <host-ip> [path]"
 }
 
 if test $# -lt 1 -o "$1" == "-h" -o "$1" == "--help"; then
@@ -14,10 +14,10 @@ if test $# -lt 1 -o "$1" == "-h" -o "$1" == "--help"; then
 	exit 0
 elif test $# -lt 2; then
 	target=
-	host_id="$1"
+	host_ip="$1"
 else
-	target="$1"
-	host_id="$2"
+	host_ip="$1"
+	target="$2"
 fi
 
 
@@ -36,7 +36,7 @@ create_backup_user()
 	test -d $(dirname "$target") || mkdir -p $(dirname "$target")
 	useradd --system --shell /bin/bash --comment "$backup_user" --user-group --create-home \
 	  --home-dir "$target" "$backup_user"
-	sudo -H -u "$backup_user" ssh-keygen -C "$backup_user@$host_id" -N "" -f "$target/.ssh/id_rsa"
+	sudo -H -u "$backup_user" ssh-keygen -C "$backup_user@$host_ip" -N "" -f "$target/.ssh/id_rsa"
 	
 	push_note "Don't forget to Copy server's public key('$target/.ssh/id_rsa.pub') to clients"
 }
@@ -135,7 +135,7 @@ install_scripts()
 
 	echo "Setting scripts execution environment"
 	settings=(
-		"Host=\"$host_id\""
+		"Host=\"$host_ip\""
 		"TODOdir=\"$TODOdir\""
 		"Datadir=\"$datadir\""
 		"Cmdir=\"$cmdir\""
