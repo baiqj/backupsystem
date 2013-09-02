@@ -168,7 +168,7 @@ install_scripts()
 # Users of Arch Linux use the following line:
 #0-59/5 * * * * su -c "'$scriptsdir/do_backup'" $backup_user
 EOF
-	push_node "Note arch users also need to modify /etc/cron.d/backupserver"
+	push_node "Note Arch users also need to modify /etc/cron.d/backupserver"
 }
 
 check_prereq

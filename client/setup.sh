@@ -164,6 +164,7 @@ set permissions through global gitosis"
 	push_note "Host $default_backup_server"
 	push_note "  StrictHostKeyChecking no"
 	push_note "  UserKnownHostsFile=/dev/null"
+	push_note "Or su -c 'ssh $backup_user_remote@$default_backup_server' $backup_user, and press yes"
 
 	echo "Installing '/etc/cron.d/backupclient' ..."
 	cat > /etc/cron.d/backupclient <<EOF
