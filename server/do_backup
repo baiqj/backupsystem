@@ -60,10 +60,11 @@ function ProcessRquest {
 (
 flock -xn 300
 
-for N in "$TODOdir"/*
+cd "$TODOdir"
+for N in *
 do
 	if test -d "$N"; then
-		pushd "$N" || continue
+		cd "$N" || continue
 
 		resumelog=$(mktemp)
 		for P in P*
@@ -92,7 +93,7 @@ EOF
 		done
 		
 		if test -s "$failog"; then
-			echo "Some error happens in backup ${Host} => ${N}, notifies $Administrators..."
+			echo "Some error happens in backup ${Host} => $TODOdir/$N, notifies $Administrators..."
 			"$Sendmail" -i $Administrators <<EOF
 Subject: [${Host}][${Launch_time}] errors in backup
 
@@ -107,7 +108,7 @@ EOF
 			rm -f "$F"
 		done
 
-		popd
+		cd "$TODOdir"
 	fi
 done
 
