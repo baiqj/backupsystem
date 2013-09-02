@@ -55,14 +55,6 @@ check_prereq()
 		exit 2
 	fi
 
-	echo "Locating crontab ..."
-	for crontab in "/etc/crontab" "/var/spool/cron/root";
-	do
-		if test -f "$crontab"; then
-			break
-		fi
-	done
-
 	if id -u "$backup_user" &> /dev/null; then
 		backup_user_exists=1
 		target="$(eval echo ~$backup_user)"
@@ -169,9 +161,14 @@ install_scripts()
 
 	cd "$cwd"
 
-	echo "Updating '$crontab' ..."
-	sed -i -e "/\/do_backup/d" \
-	  -e "\$a 0-59/5 * * * * $backup_user '$scriptsdir/do_backup'" "$crontab"
+	echo "Installing '/etc/cron.d/backupserver' ..."
+	cat > /etc/cron.d/backupserver <<EOF
+0-59/5 * * * * $backup_user '$scriptsdir/do_backup'
+
+# Users of Arch Linux use the following line:
+#0-59/5 * * * * su -c "'$scriptsdir/do_backup'" $backup_user
+EOF
+	push_node "Note arch users also need to modify /etc/cron.d/backupserver"
 }
 
 check_prereq

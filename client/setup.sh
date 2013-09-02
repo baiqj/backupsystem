@@ -57,14 +57,6 @@ check_prereq()
 		exit 2
 	fi
 
-	echo "Locating crontab ..."
-	for crontab in "/etc/crontab" "/var/spool/cron/root";
-	do
-		if test -f "$crontab"; then
-			break
-		fi
-	done
-
 	if id -u "$backup_user" &> /dev/null; then
 		backup_user_exists=1
 		target="$(eval echo ~$backup_user)"
@@ -173,11 +165,16 @@ set permissions through global gitosis"
 	push_note "  StrictHostKeyChecking no"
 	push_note "  UserKnownHostsFile=/dev/null"
 
-	echo "Updating '$crontab' ..."
-	sed -i -e "/\/send_request/d" \
-	  -e "\$a 0-59/5 * * * * $backup_user '$scriptsdir/send_request'" "$crontab"
-	push_note "Note: for periodic backup, add entries to '$crontab', e.g."
+	echo "Installing '/etc/cron.d/backupclient' ..."
+	cat > /etc/cron.d/backupclient <<EOF
+0-59/5 * * * * $backup_user '$scriptsdir/send_request'
+
+# Users of Arch Linux use the following line:
+#0-59/5 * * * * su -c "'$scriptsdir/send_request'" $backup_user
+EOF
+	push_note "Note: for periodic backup, add entries to crontab, e.g."
 	push_note "0 23 11 * * $backup_user '$scriptsdir/backup_all' &>/dev/null"
+	push_node "Arch users also need to modify /etc/cron.d/backupclient"
 
 	push_note "To enable git *realtime* backup, \
 add the following line to .git/hooks/post-update:"
