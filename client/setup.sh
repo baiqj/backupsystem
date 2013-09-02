@@ -111,7 +111,7 @@ install_scripts ()
 {
 	local cwd=$(pwd)
 
-	exec_sources=("backup_all" "send_request")
+	exec_sources=("backup_all" "send_request" "backup_it")
 	normal_sources=("backupconfig.sh" "backupconfig.py" "commitBackupRequest" "cmds/backup_FS" "cmds/backup_git" "cmds/backup_postgresdb" "cmds/dummy" "utils/utils.sh")
 	
 	for item in "${exec_sources[@]}"
