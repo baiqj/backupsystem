@@ -41,7 +41,7 @@ create_backup_user()
 backup server's gitosis-admin.git"
 
 	push_note "Adding user '$backup_user' to related group to grant access perms, e.g."
-	push_note "	useradd -a $backup_user -G git; useradd -a $backup_user -G www-data"
+	push_note "	usermod -a $backup_user -G git; usermod -a $backup_user -G www-data"
 
 	push_note "You need do visudo settings, add the following lines:"
 	push_note "	$backup_user ALL = (root) NOPASSWD: /bin/chown, /bin/tar"
