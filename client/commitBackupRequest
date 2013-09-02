@@ -3,7 +3,7 @@
 """." "`dirname "$0"`/backupconfig.sh"
 exec python "$0" "$@" """#"
 
-import os, sys, fcntl, os.path, logging
+import os, sys, fcntl, os.path, logging, re
 from base64 import urlsafe_b64encode
 from backupconfig import RequestDir, Cmds, DefaultBackupNode
 	
@@ -19,11 +19,16 @@ if __name__ == '__main__':
 	
 	try:
 		backup = os.path.basename (sys.argv[3])
+		backup = backup.strip () or DefaultBackupNode
 	except IndexError:
 		backup = DefaultBackupNode
-	else:
-		if not backup.strip ():
-			backup = DefaultBackupNode
+
+	try:
+		m = re.match ('ssh://\w+@(\w[\w.]+)/|\w+@(\w[\w.]+):',
+			      backup)
+		svr_host = m.group (1) or m.group (2)
+	except:
+		sys.exit('Invalid backup URL: %s' % backup)
 	
 	module = sys.argv[1]
 	path = sys.argv[2]
@@ -32,7 +37,7 @@ if __name__ == '__main__':
 	
 	old_path = os.getcwd ()
 	try:
-		dir = os.path.join (RequestDir, backup)
+		dir = os.path.join (RequestDir, svr_host)
 		if not os.path.exists (dir):
 			os.mkdir (dir, 0755)
 		os.chdir (dir)
