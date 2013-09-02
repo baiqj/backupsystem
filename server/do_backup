@@ -6,7 +6,7 @@ Logfile="$LogfileDir/$(date +%y-%m)"
 
 Launch_time=$(date)
 
-function ProcessRquest {
+function ProcessRequest {
 	local P="$1"
 	local node="$2"
 	local totalog="$3"
@@ -88,7 +88,7 @@ EOF
 			test -e "$C" || break
 			P="P${C:1}"
 			mv -f "$C" "$P"
-			ProcessRquest "$P" "$N" "$Logfile" "$failog"
+			ProcessRequest "$P" "$N" "$Logfile" "$failog"
 			mv -f "$P" "F${P:1}"
 		done
 		
