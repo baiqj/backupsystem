@@ -9,7 +9,7 @@ backup_srv="$2"
 
 case "$op" in
 	git)
-		find -type d -name '*.git' "$git_base" -exec \
+		find "$git_base" -type d -name '*.git' -exec \
 		  "$commitBackupRequest" git {} "$backup_srv" \;
 		;;
 	postgresdb)
