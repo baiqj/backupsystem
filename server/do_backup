@@ -68,7 +68,7 @@ function ProcessRequest {
 }
 
 (
-flock -xn 300
+flock -xn 300 || exit 0
 
 cd "$TODOdir"
 for N in *
