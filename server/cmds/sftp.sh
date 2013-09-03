@@ -18,7 +18,8 @@ if test -e "$obj_path"; then
 	ln -sf "$obj_path" "$store_to"
 else
 
-	sftp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$host"<<EOF
+#	sftp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$host"<<EOF
+	sftp "$host"<<EOF
 get "$path" "$buffer"
 rm "$path"
 bye
