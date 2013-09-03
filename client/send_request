@@ -49,7 +49,7 @@ do
 			"$Sendmail" -i $Administrators <<EOF
 Subject: [${Host}][${Launch_time}] resume backup
 
-$resumelog
+$(cat $resumelog)
 EOF
 		fi
 		rm -f "$resumelog"
@@ -97,7 +97,7 @@ EOF
 			"$Sendmail" -i $Administrators <<EOF
 Subject: [${Host}][${Launch_time}]errors in backup
 
-$failog
+$(cat $failog)
 EOF
 		fi
 		rm -f "$failog"
