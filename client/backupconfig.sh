@@ -14,11 +14,12 @@ tmpDir="/var/backup/tmp"
 # Backup sub-module related
 Export_ssh="backupclient@$Host"
 
-git_base="/var/www/code/git"
+git_base="/path/to/git/repos"
 postgres_db=""
-trac="/var/www/code"
-app="/var/www/app"
-drupal="/var/www/drupal"
+trac="/path/to/trac"
+wiki="/path/to/wiki"
+wordpress="/path/to/wordpress"
+dists_repos="/path/to/apt/repo1 /path/to/apt/repo2"
 
 # Notification
 Sendmail="/usr/bin/sendmail"

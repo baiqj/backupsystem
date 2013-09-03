@@ -41,6 +41,16 @@ function ProcessRequest {
 			cmd="${Cmdir}/sftp.sh"
 			args=("$url" "$store_to")
 			;;
+		'rsync')
+			timestamp=$(cut -d " " -f 2 "$P")
+			url=$(cut -d " " -f 3- "$P")
+			store_dir="${Datadir}/$(basename ${node})/rsync"
+			store_to="${store_dir}/$(basename ${url})"
+
+			test -e "$store_to" || mkdir -p "$store_to"
+			cmd="${Cmdir}/rsync.sh"
+			args=("$url" "$store_to")
+			;;
 		*)
 			echo "unknown module: \"${module}\""
 			return -1

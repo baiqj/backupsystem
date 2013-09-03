@@ -8,20 +8,51 @@ name=$(echo -n "$source_dir" | base64)
 timestamp=$(date +%y-%m-%d_%H_%M_%S)
 
 target="${tmpDir}/${name} ${timestamp}.tar.lzma"
+db_tmp=
 
-tarfail=0
+cleanup ()
+{
+	[ ! -e "$target" ] || rm -f "$target"
+	[ ! -e "$db_tmp" ] || rm -f "$db_tmp"
+}
+
+trap cleanup EXIT
+
 case "$module" in
-    'app'|'drupal'|'trac')
-		tar cpf "$target" --lzma "$source_dir" || tarfail=1
-		if test $tarfail -eq 1; then
-			rm -f "$target"
-			exit -1
-		fi
-        ;;
+	'wiki')
+		db_tmp="$tmpDir/wiki-db-dump.${timestamp}.xml"
+		php "$source_dir/maintenance/dumpBackup.php" --full > "$db_tmp"
+		tar cpf "$target" --lzma "$source_dir" "$db_tmp"
+	;;
+	'wordpress') # mysql: http://heiher.info/1269.html
+		idx=0
+		for i in `php -r "include '$source_dir/wp-config.php'; \
+echo DB_NAME; echo \"\n\"; echo DB_HOST; echo \"\n\"; \
+echo DB_USER; echo \"\n\"; echo DB_PASSWORD; "`
+		do
+			if [ $idx -eq 0 ]; then
+				wordpress_db=$i
+			elif [ $idx -eq 1 ]; then
+				wordpress_dbhost=$i
+			elif [ $idx -eq 2 ]; then
+				wordpress_db_u=$i
+			elif [ $idx -eq 3 ]; then
+				wordpress_db_pass=$i
+			fi
+			let idx=$idx+1
+		done
+
+		db_tmp="$tmpDir/wordpress-db-dump.${timestamp}.mysql"
+		mysqldump -u"$wordpress_db_u" -p"$wordpress_db_pass" "$wordpress_db" >"$db_tmp"
+		tar cpf "$target" --lzma "$source_dir" "$db_tmp"
+	;;
+	'trac') # sqlite
+		tar cpf "$target" --lzma "$source_dir"
+	;;
 	*)
-        echo "backup FS: Not support module: \"$module\"" >&2
-        exit -1
-        ;;
+		echo "backup FS: Not support module: \"$module\"" >&2
+		exit 1
+	;;
 esac
 
 fingerprint=$(checksum "$target")

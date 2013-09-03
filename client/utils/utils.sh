@@ -2,17 +2,17 @@
 set -u
 
 function add_queue {
-	name="$1"
-	content="$2"
+	local name="$1"
+	local content="$2"
 
 	echo "$content" > "${TODOdir}/RQ${name}"
 }
 
 function checksum {
-	file="$1"
-	hash_len=64
-	checksum=$(sha256sum "$file")
+	local file="$1"
+	local hash_len=64
+	local cksum=$(sha256sum "$file")
 
-	echo "${checksum:0:${hash_len}}"
+	echo "${cksum:0:${hash_len}}"
 }
 

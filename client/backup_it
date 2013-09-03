@@ -12,17 +12,17 @@ case "$op" in
 		find "$git_base" -type d -name '*.git' -exec \
 		  "$commitBackupRequest" git {} "$backup_srv" \;
 		;;
-	postgresdb)
-		"$commitBackupRequest" "postgresdb" "" "$backup_srv"
+#	postgresdb)
+#		"$commitBackupRequest" "postgresdb" "" "$backup_srv"
+#		;;
+	trac|wiki|wordpress)
+		"$commitBackupRequest" "$op" `eval echo \\$$op` "$backup_srv"
 		;;
-	trac)
-		"$commitBackupRequest" "trac" "$trac" "$backup_srv"
-		;;
-	app)
-		"$commitBackupRequest" "app" "$app" "$backup_srv"
-		;;
-	drupal)
-		"$commitBackupRequest" "drupal" "$drupal" "$backup_srv"
+	apt)
+		for dist_repo in $dists_repos
+		do
+			"$commitBackupRequest" "rsync" "$dist_repo" "$backup_srv"
+		done
 		;;
 	*)
 		echo "Unknown OP $op"

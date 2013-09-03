@@ -23,7 +23,7 @@ function ProcessRequest {
 	fi
 	
 	cat "$t1" >> "$totalog"; echo >> "$totalog"
-    rm -f "$t1"
+	rm -f "$t1"
 }
 
 (
