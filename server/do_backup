@@ -44,16 +44,22 @@ function ProcessRequest {
 		'rsync')
 			timestamp=$(cut -d " " -f 2 "$P")
 			url=$(cut -d " " -f 3- "$P")
+			dir_path=$(echo "$url" | sed -n 's/^[^:\/]*\(:\/\|[:\/]\)//p')
+			if test -z "$dir_path"; then
+				test -z "$failog" || echo "Invalid url '$url'" >>"$failog"
+				return 1
+			fi
+
 			store_dir="${Datadir}/$(basename ${node})/rsync"
-			store_to="${store_dir}/$(basename ${url})"
+			store_to="${store_dir}/${dir_path}"
 
 			test -e "$store_to" || mkdir -p "$store_to"
 			cmd="${Cmdir}/rsync.sh"
-			args=("$url" "$store_to")
+			args=("$url/" "$store_to")
 			;;
 		*)
 			echo "unknown module: \"${module}\""
-			return -1
+			return 2
 			;;
 	esac
 	
