@@ -6,12 +6,6 @@ source_dir="$1"
 name=$(echo -n "$source_dir" | base64)
 timestamp=$(date +%y-%m-%d_%H_%M_%S)
 
-cleanup ()
-{
-}
-
-trap cleanup EXIT
-
-echo "backup_dir: \"$source_dir\"" successfully"
+echo "backup_dir: \"$source_dir\" successfully"
 add_queue "$name" "rsync ${timestamp} ${Export_ssh}:${source_dir}"
 
