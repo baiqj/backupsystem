@@ -19,7 +19,7 @@ postgres_db=""
 trac="/path/to/trac"
 wiki="/path/to/wiki"
 wordpress="/path/to/wordpress"
-dists_repos="/path/to/apt/repo1 /path/to/apt/repo2"
+directories="/path/to/apt/repo1 /path/to/apt/repo2"
 
 # Notification
 Sendmail="/usr/bin/sendmail"

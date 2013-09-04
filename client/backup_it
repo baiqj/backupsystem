@@ -18,10 +18,10 @@ case "$op" in
 	trac|wiki|wordpress)
 		"$commitBackupRequest" "$op" `eval echo \\$$op` "$backup_srv"
 		;;
-	apt)
-		for dist_repo in $dists_repos
+	directories)
+		for dir in $directories
 		do
-			"$commitBackupRequest" "rsync" "$dist_repo" "$backup_srv"
+			"$commitBackupRequest" "rsync" "$dir" "$backup_srv"
 		done
 		;;
 	*)
