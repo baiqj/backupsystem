@@ -111,7 +111,7 @@ install_scripts()
 	local cwd=$(pwd)
 
 	exec_sources=("do_backup" "bkdb")
-	normal_sources=("backupconfig.sh" "cmds/git.sh" "cmds/sftp.sh" "utils/post-update.template" "utils/backupProp.py" "utils/utils.sh" "utils/colorful.py")
+	normal_sources=("backupconfig.sh" "cmds/git.sh" "cmds/sftp.sh" "cmds/rsync.sh" "utils/post-update.template" "utils/backupProp.py" "utils/utils.sh" "utils/colorful.py")
 	
 	for item in "${exec_sources[@]}"
 	do
